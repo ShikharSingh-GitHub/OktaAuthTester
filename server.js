@@ -2,9 +2,25 @@ require("dotenv").config();
 const express = require("express");
 const morgan = require("morgan");
 const bodyParser = require("body-parser");
+const cors = require("cors");
 const { authenticate, authorize } = require("./auth");
 
 const app = express();
+
+// CORS configuration for frontend access
+app.use(
+  cors({
+    origin: ["http://localhost:5173", "http://localhost:3000"],
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
+  })
+);
+
+// Handle preflight requests for specific routes
+app.options("/items", cors());
+app.options("/items/:id", cors());
+app.options("/me", cors());
 
 app.use(morgan("combined"));
 app.use(bodyParser.json());
