@@ -17,7 +17,30 @@ npm run dev   # or: npm start
 # API on http://localhost:3000
 ```
 
-## 3) Check our API
+## 3) Basic Auth with Okta (MFA aware)
+
+Use HTTP Basic Auth in Postman or curl. The server will call Okta AuthN API and, if MFA is required, automatically initiate Okta Verify Push and poll until you approve on your device.
+
+- Username: your Okta username (e.g. `user@example.com`)
+- Password: your Okta password
+
+If the user has no Okta Verify Push factor, the API returns 401 with details.
+
+Group-to-scope mapping (Okta Groups → API scope):
+
+- ReadUsers → `read`
+- WriteUsers → `write`
+- DeleteUsers → `delete`
+
+Ensure your user is assigned to exactly one of these groups.
+
+To test quickly without Okta, hardcoded users exist:
+
+- `readuser:readpass` → ReadUsers
+- `writeuser:writepass` → WriteUsers
+- `deleteuser:deletepass` → DeleteUsers
+
+## 4) Check our API
 
 Once the server is running, you can test the API using tools like [curl](https://curl.se/) or [Postman](https://www.postman.com/).
 
@@ -30,7 +53,7 @@ Once the server is running, you can test the API using tools like [curl](https:/
 
 Replace `<your_access_token>` with a valid token.
 
-## 4) Test the API
+## 5) Test the API
 
 Here are example `curl` commands for each operation (replace `<token>` as needed):
 
@@ -40,33 +63,38 @@ Here are example `curl` commands for each operation (replace `<token>` as needed
   curl http://localhost:3000/health
   ```
 
-- **List items**
+- **List items (Bearer)**
 
   ```bash
   curl -H "Authorization: Bearer <token>" http://localhost:3000/items
   ```
 
-- **Get item by ID**
+- **Get item by ID (Bearer)**
 
   ```bash
   curl -H "Authorization: Bearer <token>" http://localhost:3000/items/1
   ```
 
-- **Create item**
+- **Create item (Bearer)**
 
   ```bash
   curl -X POST -H "Authorization: Bearer <token>" -H "Content-Type: application/json" -d '{"name":"Item Name"}' http://localhost:3000/items
   ```
 
-- **Update item**
+- **Update item (Bearer)**
 
   ```bash
   curl -X PUT -H "Authorization: Bearer <token>" -H "Content-Type: application/json" -d '{"name":"New Name"}' http://localhost:3000/items/1
   ```
 
-- **Delete item**
   ```bash
   curl -X DELETE -H "Authorization: Bearer <token>" http://localhost:3000/items/1
+  ```
+
+- **List items (Basic with MFA)**
+  ```bash
+  curl -H "Authorization: Basic $(printf 'user@example.com:password' | base64)" http://localhost:3000/items
+  # Approve push on your Okta Verify app
   ```
 
 ## Role/Scope Permissions
@@ -98,3 +126,8 @@ Each user/client should only be assigned to one group/scope for exclusive access
 - Double-check the `Authorization: Bearer <token>` header in Postman.
 - Decode your token at [jwt.io](https://jwt.io/) to inspect claims.
 - Check API logs for more details on the error.
+
+For Basic + MFA:
+- Make sure the user is enrolled in Okta Verify Push.
+- Approve the push within ~90 seconds.
+- If you see "MFA required but no Push factor", enroll Push or adjust policy.
