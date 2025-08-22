@@ -3,7 +3,9 @@ const express = require("express");
 const morgan = require("morgan");
 const bodyParser = require("body-parser");
 const cors = require("cors");
-const { authenticate, authorize } = require("./auth");
+
+// Import separated middleware
+const { authenticate, authorize, addPermissions } = require("./middleware");
 
 const app = express();
 
@@ -17,10 +19,20 @@ app.use(
   })
 );
 
-// Handle preflight requests for specific routes
-app.options("/items", cors());
-app.options("/items/:id", cors());
-app.options("/me", cors());
+// Handle preflight requests - fixed approach
+app.use((req, res, next) => {
+  if (req.method === "OPTIONS") {
+    res.header("Access-Control-Allow-Origin", req.headers.origin);
+    res.header("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
+    res.header(
+      "Access-Control-Allow-Headers",
+      "Content-Type,Authorization,X-Requested-With"
+    );
+    res.header("Access-Control-Allow-Credentials", "true");
+    return res.sendStatus(200);
+  }
+  next();
+});
 
 app.use(morgan("combined"));
 app.use(bodyParser.json());
@@ -30,10 +42,10 @@ const itemsDb = require("./items");
 
 // Health check (public)
 app.get("/health", (req, res) => {
-  res.json({ status: "UP" });
+  res.json({ status: "UP", timestamp: new Date().toISOString() });
 });
 
-// CRUD routes (protected)
+// CRUD routes (protected) - using separated middleware
 app.get("/items", authenticate, authorize("read"), (req, res) => {
   const items = itemsDb.getAllItems();
   res.status(200).json({
@@ -113,9 +125,12 @@ app.delete("/items/:id", authenticate, authorize("delete"), (req, res) => {
   });
 });
 
-// Debug endpoint to see user info
-app.get("/me", authenticate, (req, res) => {
-  res.json(req.user);
+// Debug endpoint to see user info - with permissions
+app.get("/me", authenticate, addPermissions, (req, res) => {
+  res.json({
+    user: req.user,
+    permissions: req.userPermissions,
+  });
 });
 
 // Error handling middleware
@@ -130,5 +145,6 @@ app.use((err, req, res, next) => {
 // Start server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`📊 Health check: http://localhost:${PORT}/health`);
 });
