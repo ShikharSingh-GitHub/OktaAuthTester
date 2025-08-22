@@ -10,15 +10,25 @@ const { authenticate, authorize, addPermissions } = require("./middleware");
 const app = express();
 
 // CORS configuration for frontend access
+// CORS configuration for frontend access and proxy
 app.use(
   cors({
-    origin: ["http://localhost:5173", "http://localhost:3000"],
+    origin: [
+      "http://localhost:5173", // Your Hoppscotch frontend
+      "http://localhost:5001", // Your Hoppscotch backend
+      "http://localhost:3000", // This auth server
+    ],
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "X-Requested-With",
+      "Access-Control-Allow-Origin",
+      "Access-Control-Allow-Headers",
+    ],
   })
 );
-
 // Handle preflight requests - fixed approach
 app.use((req, res, next) => {
   if (req.method === "OPTIONS") {
@@ -41,8 +51,59 @@ app.use(bodyParser.json());
 const itemsDb = require("./items");
 
 // Health check (public)
+// Health check (public)
 app.get("/health", (req, res) => {
   res.json({ status: "UP", timestamp: new Date().toISOString() });
+});
+
+// Proxy endpoint for your Hoppscotch clone
+app.all("/api/proxy", async (req, res) => {
+  try {
+    console.log("🔄 Proxy request received:", {
+      method: req.method,
+      url: req.body?.url,
+      headers: req.body?.headers,
+      body: req.body?.body,
+    });
+
+    const { url, method = "GET", headers = {}, body } = req.body;
+
+    if (!url) {
+      return res.status(400).json({ error: "URL is required" });
+    }
+
+    // Forward the request
+    const axios = require("axios");
+    const response = await axios({
+      method,
+      url,
+      headers: {
+        ...headers,
+        // Ensure proper CORS headers are passed through
+        "Access-Control-Allow-Origin": req.headers.origin,
+        "Access-Control-Allow-Credentials": "true",
+      },
+      data: body,
+      validateStatus: () => true, // Don't throw on HTTP errors
+    });
+
+    // Set CORS headers for the proxy response
+    res.set({
+      "Access-Control-Allow-Origin": req.headers.origin,
+      "Access-Control-Allow-Credentials": "true",
+      "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS",
+      "Access-Control-Allow-Headers":
+        "Content-Type,Authorization,X-Requested-With",
+    });
+
+    res.status(response.status).json(response.data);
+  } catch (error) {
+    console.error("❌ Proxy error:", error.message);
+    res.status(500).json({
+      error: "Proxy request failed",
+      details: error.message,
+    });
+  }
 });
 
 // CRUD routes (protected) - using separated middleware
